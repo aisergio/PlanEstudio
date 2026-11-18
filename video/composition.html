@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="gsap.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #e9f3ff; }
+    #scene { position: relative; overflow: hidden; width: 1280px; height: 720px; padding: 50px 70px; background: radial-gradient(ellipse at 72% 37%, #244c9a, #142851 54%, #101c3a); }
+    .eyebrow { color: #81c8ff; font-weight: 700; letter-spacing: 3px; font-size: 20px; }
+    h1 { margin: 13px 0 6px; font-size: 49px; letter-spacing: -1.2px; max-width: 1110px; }
+    h2 { margin: 9px 0 16px; color: #add5ff; font-size: 25px; letter-spacing: .25px; }
+    .board { background: #f2f7ff; color: #163562; border: 2px solid #6fa8f1; border-radius: 22px; height: 317px; display: flex; justify-content: center; align-items: center; padding: 24px; }
+    .board svg { max-width: 100%; max-height: 265px; }
+    .board .note { font-size: 33px; font-weight: 700; line-height: 1.25; text-align: center; max-width: 880px; }
+    .caption { display: flex; align-items: center; justify-content: center; position: absolute; bottom: 30px; left: 75px; width: 1130px; min-height: 74px; padding: 13px 24px; background: #09152a; color: #fff; border: 1px solid #5380c2; border-radius: 12px; text-align: center; font-size: 25px; line-height: 1.2; }
+    .timeline { position: absolute; bottom: 0; left: 0; height: 6px; width: 100%; background: #75baff; transform-origin: left; }
+  </style>
+</head>
+<body>
+  <main id="scene" data-composition-id="scene" data-width="1280" data-height="720" data-fps="30" data-start="0" data-duration="@@SECONDS@@">
+    <div class="eyebrow">PLANESTUDIO · @@ROUTE@@</div>
+    <h1>@@TITLE@@</h1>
+    <h2>@@SLIDE@@</h2>
+    <div class="board">@@ART@@</div>
+    <div class="timeline"></div>
+    @@CAPTIONS@@
+    <audio id="daniela" data-start="0" data-duration="@@SECONDS@@" data-track-index="1" src="voz.wav"></audio>
+  </main>
+  <script>
+    const length = @@SECONDS@@;
+    const timeline = gsap.timeline({ paused: true });
+    timeline.from('.eyebrow, h1, h2', { y: 12, opacity: 0, stagger: 0.13, duration: 0.65 }, 0);
+    timeline.from('.board', { y: 18, opacity: 0, duration: 0.7 }, 0.45);
+    const groups = Array.from(document.querySelectorAll('.board .node, .board .messageText, .board .edgePaths, .board .note'));
+    groups.forEach((element, i) => {
+      const at = 1.6 + i * Math.min(5, (length - 3) / Math.max(1, groups.length));
+      timeline.from(element, { opacity: 0.18, duration: 1.2 }, at);
+    });
+    timeline.fromTo('.timeline', { scaleX: 0 }, { scaleX: 1, duration: length, ease: 'none' }, 0);
+    window.__timelines = window.__timelines || {};
+    window.__timelines.scene = timeline;
+  </script>
+</body>
+</html>

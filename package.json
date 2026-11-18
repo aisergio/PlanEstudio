@@ -1,0 +1,49 @@
+{
+  "name": "planestudio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "astro dev --host 127.0.0.1",
+    "dev:api": "node --watch src/server/dev.ts",
+    "build": "astro build && pnpm build:api",
+    "build:api": "esbuild src/server/lambda.ts --bundle --platform=node --format=cjs --target=node22 --outfile=.build/lambda/index.js",
+    "check": "astro check",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.mjs",
+    "test:browser": "playwright test",
+    "video:worker": "node video/worker.mjs",
+    "video:youtube-auth": "node video/worker.mjs --youtube-auth"
+  },
+  "dependencies": {
+    "@astrojs/react": "^5.0.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1000.0",
+    "@aws-sdk/client-dynamodb": "^3.1000.0",
+    "@aws-sdk/client-s3": "^3.1000.0",
+    "@aws-sdk/lib-dynamodb": "^3.1000.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "astro": "^6.0.0",
+    "aws-jwt-verify": "^5.1.1",
+    "lucide-react": "^0.564.0",
+    "mermaid": "^11.12.0",
+    "pdfmake": "^0.3.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.3.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.6",
+    "@playwright/test": "^1.58.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "esbuild": "^0.27.0",
+    "gsap": "^3.15.1",
+    "hyperframes": "^0.9.64",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,0 +1,26 @@
+---
+import StudyApp from '../ui/StudyApp';
+import '../ui/site.css';
+
+export function getStaticPaths() {
+  return [undefined, 'rutas', 'calendario', 'progreso', 'biblioteca', 'recursos-adicionales', 'tutor', 'auth/callback']
+    .map(view => ({ params: { view } }));
+}
+
+const view = Astro.params.view ?? 'inicio';
+---
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="theme-color" content="#14234b" />
+    <title>PlanEstudio</title>
+  </head>
+  <body>
+    <StudyApp view={view} client:only="react">
+      <p class="startup" slot="fallback">Cargando PlanEstudio…</p>
+    </StudyApp>
+  </body>
+</html>

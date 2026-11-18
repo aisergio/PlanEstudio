@@ -14,6 +14,8 @@ pnpm dev
 
 Abre [PlanEstudio local](http://127.0.0.1:4321/PlanEstudio/). La vista local escucha en `127.0.0.1` y guarda los datos en `.private`. Edita la fecha de inicio y los días de los bloques en Calendario. En Rutas, elige la semana para ver las tareas, prerrequisitos, guía y recursos.
 
+Para abrir la versión compilada, ejecuta `pnpm build` y luego `pnpm preview` en la misma carpeta.
+
 ## Calendario y contenido
 
 - IA y Deep Learning comprende 78 semanas y 18 meses. Full Stack comprende 52 semanas y 12 meses y usa la plataforma de telemetría del programa de Contexto.

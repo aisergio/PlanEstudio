@@ -3,41 +3,31 @@ import { blockTypes, tracks, weekKey } from '../core/curriculum.ts';
 import type { Week } from '../core/curriculum.ts';
 import type { Suggestion } from '../core/resources.ts';
 
-function rasterDiagram(svg: string) {
-  return new Promise<string>((resolve, reject) => {
-    const image = new Image();
-    const parsed = new DOMParser().parseFromString(svg, 'image/svg+xml');
-    const root = parsed.documentElement;
-    const view = root.getAttribute('viewBox')?.split(/[\s,]+/).map(Number);
-    const w = view?.[2] || 500;
-    const h = view?.[3] || 250;
-    root.setAttribute('width', String(w)); root.setAttribute('height', String(h));
-    root.removeAttribute('style');
-    const source = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(root)], { type: 'image/svg+xml' }));
-    image.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.ceil(w * 2); canvas.height = Math.ceil(h * 2);
-        const context = canvas.getContext('2d')!;
-        context.fillStyle = 'white'; context.fillRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/png'));
-      } catch (error) { reject(error); } finally { URL.revokeObjectURL(source); }
-    };
-    image.onerror = error => { URL.revokeObjectURL(source); reject(error); };
-    image.src = source;
-  });
+function vectorDiagram(source: string) {
+  const parsed = new DOMParser().parseFromString(source, 'image/svg+xml');
+  const root = parsed.documentElement;
+  const view = root.getAttribute('viewBox')?.split(/[\s,]+/).map(Number);
+  if (root.localName !== 'svg' || !view?.[2] || !view[3]) throw new Error('El diagrama no tiene dimensiones válidas.');
+  root.setAttribute('width', String(view[2]));
+  root.setAttribute('height', String(view[3]));
+  root.removeAttribute('style');
+  for (const element of root.querySelectorAll('text, tspan')) {
+    element.setAttribute('font-family', 'Roboto');
+  }
+  return { svg: new XMLSerializer().serializeToString(root), width: view[2], height: view[3] };
 }
 
 const point = (millimeters: number) => millimeters * 72 / 25.4;
 export async function downloadGuide(week: Week, guide: Guide, svg: string, suggestions: Suggestion[], profile: 'mobile' | 'a4') {
-  const [{ default: pdf }, { default: fonts }, image] = await Promise.all([
-    import('pdfmake/build/pdfmake'), import('pdfmake/build/vfs_fonts'), rasterDiagram(svg)
+  const [{ default: pdf }, { default: fonts }] = await Promise.all([
+    import('pdfmake/build/pdfmake'), import('pdfmake/build/vfs_fonts')
   ]);
   pdf.addVirtualFileSystem(fonts);
   const mobile = profile === 'mobile';
   const [width, height] = week.track === 'ia' ? [108, 234] : [90, 195];
   const bodyWidth = mobile ? point(width) - 34 : 490;
+  const diagram = vectorDiagram(svg);
+  const scale = Math.min(bodyWidth / diagram.width, (mobile ? 145 : 210) / diagram.height);
   const header = (text: string) => ({ text, style: 'section', headlineLevel: 1 });
   const content = [
     { text: tracks[week.track].name + ' / SEMANA ' + week.number, style: 'eyebrow' },
@@ -47,7 +37,7 @@ export async function downloadGuide(week: Week, guide: Guide, svg: string, sugge
     { ul: blockTypes.map(block => block.title + ' · ' + block.minutes + ' min'), margin: [0, 0, 0, 8] },
     header('Conceptos'),
     ...guide.theory.flatMap(([title, body]) => [{ text: title, style: 'topic' }, { text: body, style: 'paragraph' }]),
-    { image, fit: [bodyWidth, mobile ? 145 : 210], alignment: 'center', margin: [0, 4, 0, 8] },
+    { svg: diagram.svg, width: diagram.width * scale, height: diagram.height * scale, alignment: 'center', margin: [0, 4, 0, 8] },
     header('Ejemplo trabajado'), { text: guide.example, style: 'paragraph' },
     ...(guide.code ? [{ text: guide.code, style: 'code' }] : []),
     header('Laboratorio y proyecto'), { ol: guide.lab, style: 'paragraph' },

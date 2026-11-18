@@ -108,17 +108,17 @@ resource "aws_iam_role_policy" "data" {
     Statement = concat([
       { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:DeleteItem"], Resource = aws_dynamodb_table.study.arn },
       { Effect = "Allow", Action = ["s3:GetObject"], Resource = "${aws_s3_bucket.study.arn}/private/library.json" }
-      ], var.enable_bedrock ? [
-      { Effect = "Allow", Action = ["bedrock:InvokeModel"], Resource = aws_bedrock_inference_profile.study[0].arn },
-      {
-        Effect   = "Allow"
-        Action   = ["bedrock:InvokeModel"]
-        Resource = [for model in aws_bedrock_inference_profile.study[0].models : model.model_arn]
-        Condition = {
-          ArnEquals = { "bedrock:InferenceProfileArn" = aws_bedrock_inference_profile.study[0].arn }
+      ], flatten([for profile in aws_bedrock_inference_profile.study : [
+        { Effect = "Allow", Action = ["bedrock:InvokeModel"], Resource = profile.arn },
+        {
+          Effect   = "Allow"
+          Action   = ["bedrock:InvokeModel"]
+          Resource = [for model in profile.models : model.model_arn]
+          Condition = {
+            ArnEquals = { "bedrock:InferenceProfileArn" = profile.arn }
+          }
         }
-      }
-    ] : [])
+    ]]))
   })
 }
 

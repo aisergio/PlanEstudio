@@ -70,5 +70,15 @@ export async function downloadGuide(week: Week, guide: Guide, svg: string, sugge
     footer: (page: number, pages: number) => ({ text: 'PlanEstudio  ·  v' + guide.version + '  ·  ' + page + ' / ' + pages,
       alignment: 'center', color: '#526885', fontSize: 8, margin: [0, 7, 0, 0] })
   };
-  await pdf.createPdf(definition).download('PlanEstudio-' + weekKey(week.track, week.number) + '-' + profile + '.pdf');
+  const blob = await pdf.createPdf(definition).getBlob();
+  const address = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = address;
+  anchor.target = '_blank';
+  anchor.rel = 'noopener';
+  anchor.download = 'PlanEstudio-' + weekKey(week.track, week.number) + '-' + profile + '.pdf';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(address), 30_000);
 }

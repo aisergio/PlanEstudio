@@ -90,10 +90,11 @@ resource "aws_cognito_user_pool_client" "mcp" {
   generate_secret                      = false
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code"]
-  allowed_oauth_scopes                 = aws_cognito_resource_server.mcp.scope_identifiers
+  allowed_oauth_scopes                 = [local.mcp_scope]
   supported_identity_providers         = [aws_cognito_identity_provider.google.provider_name]
   callback_urls                        = [var.mcp_redirect_uri]
   explicit_auth_flows                  = ["ALLOW_REFRESH_TOKEN_AUTH"]
   prevent_user_existence_errors        = "ENABLED"
   enable_token_revocation              = true
+  depends_on                           = [aws_cognito_resource_server.mcp]
 }

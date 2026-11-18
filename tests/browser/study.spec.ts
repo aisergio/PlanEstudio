@@ -64,25 +64,29 @@ test('registra minutos y dominio, compara el objetivo y sincroniza los recursos 
   await mobile.close();
 });
 
-test('renderiza diagramas y exporta las ocho guías con los dos formatos', async ({ page }, info) => {
+test('renderiza diagramas y exporta las ocho guías con los dos formatos', async ({ context }, info) => {
   const folder = info.outputPath('pdf');
   mkdirSync(folder, { recursive: true });
   for (const track of ['ia', 'fullstack'] as Track[]) {
     for (let week = 1; week <= 4; week++) {
-      await page.goto(base + 'rutas/?ruta=' + track + '&semana=' + week);
-      await page.getByText('Leer guía semanal', { exact: true }).click();
-      await expect(page.locator('.mermaid-diagram svg')).toBeVisible();
-      await page.getByText('Leer guía semanal', { exact: true }).click();
       for (const profile of ['mobile', 'a4']) {
-        await page.getByRole('combobox', { name: 'Formato PDF' }).selectOption(profile);
-        const downloaded = page.waitForEvent('download');
-        await page.getByRole('button', { name: 'Generar PDF' }).click();
-        const file = await downloaded;
-        expect(file.suggestedFilename()).toBe('PlanEstudio-' + track + '-' + week + '-' + profile + '.pdf');
-        await file.saveAs(folder + '/' + file.suggestedFilename());
+        await test.step(track + ' / semana ' + week + ' / ' + profile, async () => {
+          const page = await context.newPage();
+          await page.goto(base + 'rutas/?ruta=' + track + '&semana=' + week);
+          await page.getByText('Leer guía semanal', { exact: true }).click();
+          await expect(page.locator('.mermaid-diagram svg')).toBeVisible();
+          await page.getByRole('combobox', { name: 'Formato PDF' }).selectOption(profile);
+          const downloaded = page.waitForEvent('download', { timeout: 15_000 });
+          await page.getByRole('button', { name: 'Generar PDF' }).click();
+          const file = await downloaded;
+          expect(file.suggestedFilename()).toBe('PlanEstudio-' + track + '-' + week + '-' + profile + '.pdf');
+          await file.saveAs(folder + '/' + file.suggestedFilename());
+          await page.close();
+        });
       }
     }
   }
+  const page = await context.newPage();
   await page.goto(base + 'rutas/?ruta=ia&semana=5');
   await expect(page.getByText('El PDF y el video se habilitarán', { exact: false })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Generar PDF' })).toHaveCount(0);

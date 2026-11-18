@@ -27,6 +27,7 @@ export default defineConfig({
   base: '/PlanEstudio/',
   trailingSlash: 'ignore',
   integrations: [react()],
+  devToolbar: { enabled: false },
   server: { host: '127.0.0.1', port: Number(process.env.PLANESTUDIO_WEB_PORT ?? 4321) },
   vite: { plugins: [localApi] }
 });

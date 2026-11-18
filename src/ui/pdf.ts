@@ -40,7 +40,7 @@ export async function downloadGuide(week: Week, guide: Guide, svg: string, sugge
     { svg: diagram.svg, width: diagram.width * scale, height: diagram.height * scale, alignment: 'center', margin: [0, 4, 0, 8] },
     header('Ejemplo trabajado'), { text: guide.example, style: 'paragraph' },
     ...(guide.code ? [{ text: guide.code, style: 'code' }] : []),
-    header('Laboratorio y proyecto'), { ol: guide.lab, style: 'paragraph' },
+    header('Laboratorio y proyecto'), { ol: [...guide.lab], style: 'paragraph' },
     header('Modo celular'), { text: guide.mobile, style: 'paragraph' },
     header('Autoevaluación'), ...guide.quiz.map(([question]) => ({ text: question, style: 'topic' })),
     header('Respuestas de comprobación'),

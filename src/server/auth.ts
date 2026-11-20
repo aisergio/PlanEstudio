@@ -21,6 +21,8 @@ const oauthError = (error: string, status: number) => json({ error }, status);
 const exchangeInput = z.object({
   code: z.string().min(5).max(2048), verifier: z.string().regex(/^[a-zA-Z0-9._~-]{43,128}$/)
 });
+const tokenErrorCode = z.enum(['invalid_grant', 'invalid_request', 'invalid_client', 'unauthorized_client',
+  'unsupported_grant_type', 'invalid_scope', 'access_denied', 'server_error', 'temporarily_unavailable']);
 
 export function devAuth(origin: string): Auth {
   return {
@@ -96,7 +98,13 @@ export function cognitoAuth(config: CognitoConfig): Auth {
           grant_type: 'authorization_code', client_id: config.webClient, redirect_uri: callback,
           code: body.data.code, code_verifier: body.data.verifier
         }));
-        if (!result.ok) return failure('Google no pudo completar el inicio de sesión.', 401);
+        if (!result.ok) {
+          const body = await result.json().catch(() => null);
+          const error = tokenErrorCode.safeParse(body?.error);
+          console.warn('Cognito web exchange rejected', { status: result.status, reason: error.success ? error.data : 'unknown' });
+          if (result.status >= 500 || result.status === 429) return failure('El servicio de acceso está ocupado. Vuelve a intentarlo en un momento.', 503);
+          return failure('El servicio de acceso rechazó este intento. Vuelve al inicio para abrir una sesión nueva.', 401);
+        }
         const data: { access_token?: string; expires_in?: number } = await result.json();
         if (!data.access_token || !(await verify(data.access_token, 'web', true))) return failure('Esta cuenta no tiene acceso a PlanEstudio.', 403);
         const age = typeof data.expires_in === 'number' ? Math.min(data.expires_in, 28_800) : 3600;

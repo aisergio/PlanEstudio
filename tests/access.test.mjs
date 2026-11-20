@@ -60,3 +60,27 @@ test('el retorno emite una sesión exclusiva del propietario y del recurso web',
     assert.equal(rejected.headers.has('Set-Cookie'), false);
   }
 });
+
+test('un canje rechazado distingue interrupciones del servicio y omite datos privados del diagnóstico', async t => {
+  const origin = 'https://example.test';
+  const app = origin + '/PlanEstudio';
+  const auth = cognitoAuth({ app, poolId: 'us-east-2_example', webClient: 'web-test',
+    domain: 'https://login.example.test', mcpClient: '', mcpRedirect: '', mcpScope: '', mcpEnabled: false });
+  const warnings = t.mock.method(console, 'warn', () => {});
+  let upstream;
+  t.mock.method(globalThis, 'fetch', async () => upstream);
+  for (const [status, providerCode, reason, expected] of [
+    [400, 'invalid_grant', 'invalid_grant', 401],
+    [400, 'private-provider-detail', 'unknown', 401],
+    [503, 'server_error', 'server_error', 503]
+  ]) {
+    upstream = Response.json({ error: providerCode, error_description: 'private-provider-detail' }, { status });
+    const result = await auth.handle(new Request(app + '/api/auth/token', { method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'test-one-time-code', verifier: 'x'.repeat(43) }) }), '/api/auth/token');
+    assert.equal(result.status, expected);
+    assert.equal(result.headers.has('Set-Cookie'), false);
+    assert.doesNotMatch(await result.text(), /private-provider-detail|test-one-time-code/);
+    assert.deepEqual(warnings.mock.calls.at(-1).arguments, ['Cognito web exchange rejected', { status, reason }]);
+  }
+});

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
@@ -29,6 +30,46 @@ test.beforeEach(async ({ context }) => {
     try { await route.fulfill({ body: await readFile(file), contentType: types[extname(file)] ?? 'application/octet-stream' }); }
     catch { await route.fulfill({ status: 404 }); }
   });
+});
+
+test('en móvil un retorno de Google usa la misma prueba PKCE y abre el panel una sola vez', async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 820 });
+  const callback = origin + base + 'auth/callback/';
+  const authorize = 'https://login.example.test/oauth2/authorize';
+  let challenge = '';
+  let exchanges = 0;
+  await context.route(origin + base + 'api/auth/config', route => route.fulfill({ json: {
+    mode: 'google', authorize, clientId: 'mobile-test', callback, resource: origin + base + 'api'
+  } }));
+  await context.route(origin + base + 'api/bootstrap', async route => {
+    const cookies = await route.request().headerValue('cookie');
+    if (cookies?.includes('__Secure-planestudio=test-session')) await route.fallback();
+    else await route.fulfill({ status: 401, json: { error: 'Inicia sesión.' } });
+  });
+  await context.route(authorize + '?**', async route => {
+    const params = new URL(route.request().url()).searchParams;
+    expect(params.get('redirect_uri')).toBe(callback);
+    expect(params.get('code_challenge_method')).toBe('S256');
+    challenge = params.get('code_challenge')!;
+    const back = new URL(callback);
+    back.searchParams.set('code', 'test-authorization-code');
+    back.searchParams.set('state', params.get('state')!);
+    await route.fulfill({ status: 302, headers: { Location: back.href } });
+  });
+  await context.route(origin + base + 'api/auth/token', async route => {
+    exchanges++;
+    const { code, verifier } = route.request().postDataJSON();
+    expect(code).toBe('test-authorization-code');
+    expect(createHash('sha256').update(verifier).digest('base64url')).toBe(challenge);
+    await route.fulfill({ json: { ok: true }, headers: {
+      'Set-Cookie': '__Secure-planestudio=test-session; Path=/PlanEstudio/api; HttpOnly; Secure; SameSite=Strict'
+    } });
+  });
+  await page.goto(base);
+  await page.getByRole('button', { name: 'Entrar con Google' }).click();
+  await expect(page.getByRole('button', { name: 'Abrir menú' })).toBeVisible();
+  await expect(page).toHaveURL(origin + base);
+  expect(exchanges).toBe(1);
 });
 
 test('registra minutos y dominio, compara el objetivo y sincroniza los recursos entre vistas', async ({ page, context }) => {

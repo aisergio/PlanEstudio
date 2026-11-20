@@ -11,7 +11,7 @@ output "cloudfront_domain" {
   value = aws_cloudfront_distribution.study.domain_name
 }
 output "google_redirect_uri" {
-  value = "https://${aws_cognito_user_pool_domain.study.domain}.auth.us-east-1.amazoncognito.com/oauth2/idpresponse"
+  value = "${local.cognito_url}/oauth2/idpresponse"
 }
 output "mcp_client_id" {
   value = try(aws_cognito_user_pool_client.mcp[0].id, "")

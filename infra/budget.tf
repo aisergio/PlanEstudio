@@ -10,9 +10,8 @@ resource "aws_budgets_budget" "study" {
   limit_amount = "10"
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
-  cost_filter {
-    name   = "TagKeyValue"
-    values = ["user:Project$PlanEstudio"]
+  cost_types {
+    include_credit = false
   }
   dynamic "notification" {
     for_each = toset([60, 80, 100])

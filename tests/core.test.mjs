@@ -4,7 +4,7 @@ import { activityKey, blockTypes, roadmap, trackIds, tracks, weekKey } from '../
 import { completion, defaults, periodBounds, todayBogota, trackWeek, validDay, weekStart, weeklyProgress } from '../src/core/calendar.ts';
 import { guides } from '../src/core/guides.ts';
 import { api } from '../src/server/api.ts';
-import { devAuth, ownerTrigger } from '../src/server/auth.ts';
+import { cognitoAuth, devAuth, ownerTrigger } from '../src/server/auth.ts';
 import { LocalStore } from '../src/server/local-store.ts';
 import { loadState } from '../src/server/store.ts';
 import { reserveTurn } from '../src/server/tutor.ts';
@@ -107,6 +107,17 @@ test('la identidad requiere la cuenta de Google verificada', () => {
   assert.throws(() => ownerTrigger({ ...data, userName: 'test' }, 'owner@example.com'));
   assert.throws(() => ownerTrigger(data, 'someone@example.com'));
   assert.throws(() => ownerTrigger({ ...data, request: { userAttributes: { ...data.request.userAttributes, email_verified: 'false' } } }, 'owner@example.com'));
+});
+
+test('la publicación inicial mantiene el catálogo y el MCP privados mientras se configura Google', async () => {
+  const origin = 'https://example.test';
+  const auth = cognitoAuth({ app: origin + '/PlanEstudio', domain: 'https://example.auth.us-east-2.amazoncognito.com',
+    poolId: 'us-east-2_example', webClient: '', mcpClient: '', mcpRedirect: '', mcpScope: 'planestudio/lectura', mcpEnabled: false });
+  const run = api({ auth, store: new LocalStore(), library: async () => assert.fail('El catálogo requiere iniciar sesión.') });
+  const response = await run(new Request(origin + '/PlanEstudio/api/auth/config'));
+  assert.deepEqual(await response.json(), { mode: 'pending' });
+  assert.equal((await run(new Request(origin + '/PlanEstudio/api/bootstrap'))).status, 401);
+  assert.equal((await run(new Request(origin + '/PlanEstudio/mcp'))).status, 401);
 });
 
 test('el tutor limita las reservas simultáneas y renueva el cupo al cambiar de mes', async () => {

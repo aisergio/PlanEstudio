@@ -43,12 +43,14 @@ export function cognitoAuth(config: CognitoConfig): Auth {
   const issuer = app + '/oauth';
   const callback = app + '/auth/callback/';
   const loginHost = config.domain.replace(/\/$/, '');
-  const verifyWeb = CognitoJwtVerifier.create({ userPoolId: config.poolId, tokenUse: 'access', clientId: config.webClient });
-  const verifyMcp = CognitoJwtVerifier.create({ userPoolId: config.poolId, tokenUse: 'access', clientId: config.mcpClient || null, scope: config.mcpScope });
+  const verifyWeb = config.webClient ? CognitoJwtVerifier.create({ userPoolId: config.poolId, tokenUse: 'access', clientId: config.webClient }) : undefined;
+  const verifyMcp = config.mcpClient ? CognitoJwtVerifier.create({ userPoolId: config.poolId, tokenUse: 'access', clientId: config.mcpClient, scope: config.mcpScope }) : undefined;
 
   async function verify(token: string, context: 'web' | 'mcp') {
+    const verifier = context === 'web' ? verifyWeb : verifyMcp;
+    if (!verifier) return false;
     try {
-      const payload = await (context === 'web' ? verifyWeb : verifyMcp).verify(token);
+      const payload = await verifier.verify(token);
       const expectedAudience = context === 'web' ? app + '/api' : resource;
       return payload['planestudio_owner'] === 'true' && payload.aud === expectedAudience && Boolean(payload.sub);
     } catch { return false; }
@@ -73,9 +75,11 @@ export function cognitoAuth(config: CognitoConfig): Auth {
     },
     async handle(request, path) {
       if (path === '/api/auth/config' && request.method === 'GET') {
+        if (!config.webClient) return json({ mode: 'pending' });
         return json({ mode: 'google', authorize: loginHost + '/oauth2/authorize', clientId: config.webClient, callback, resource: app + '/api' });
       }
       if (path === '/api/auth/token' && request.method === 'POST') {
+        if (!config.webClient) return failure('El acceso con Google está pendiente de configuración.', 503);
         if (request.headers.get('Origin') !== origin) return failure('El origen de la solicitud no está autorizado.', 403);
         const body = exchangeInput.safeParse(await readJson(request));
         if (!body.success) return failure('Regresa al inicio y vuelve a iniciar sesión.', 400);

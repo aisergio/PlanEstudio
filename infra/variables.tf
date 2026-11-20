@@ -1,3 +1,9 @@
+variable "aws_region" {
+  type        = string
+  default     = "us-east-2"
+  description = "Región asignada al proyecto en AWS Settings."
+}
+
 variable "owner_email" {
   type        = string
   description = "Correo Google autorizado y destinatario de AWS Budgets."
@@ -9,6 +15,7 @@ variable "owner_email" {
 
 variable "google_secret_arn" {
   type        = string
+  default     = null
   description = "ARN de Secrets Manager con el objeto client_id y client_secret de Google OAuth web."
 }
 
@@ -19,6 +26,10 @@ variable "mcp_redirect_uri" {
   validation {
     condition     = var.mcp_redirect_uri == "" || can(regex("^https://(chatgpt\\.com|chat\\.openai\\.com)/[^#\\s]+$", var.mcp_redirect_uri))
     error_message = "Usa la URL HTTPS de retorno que indica ChatGPT."
+  }
+  validation {
+    condition     = var.mcp_redirect_uri == "" || var.google_secret_arn != null
+    error_message = "Configura el secreto de Google para activar el cliente de ChatGPT."
   }
 }
 
@@ -39,28 +50,14 @@ variable "enable_bedrock" {
   default     = true
 }
 
+variable "api_reserved_concurrency" {
+  type        = number
+  default     = null
+  description = "Reserva de concurrencia opcional para cuentas con capacidad suficiente en Lambda."
+}
+
 variable "activate_cost_tag" {
   description = "Activa Project en facturación cuando AWS lo enumere como etiqueta disponible."
-  type        = bool
-  default     = false
-}
-
-variable "cloudflare_account_id" {
-  type    = string
-  default = ""
-}
-
-variable "cloudflare_zone_id" {
-  type    = string
-  default = ""
-  validation {
-    condition     = var.cloudflare_zone_id == "" || (can(regex("^[a-f0-9]{32}$", var.cloudflare_zone_id)) && can(regex("^[a-f0-9]{32}$", var.cloudflare_account_id)))
-    error_message = "Cuando usas Cloudflare indica los identificadores de zona y cuenta."
-  }
-}
-
-variable "cloudflare_create_apex_record" {
-  description = "Crea un registro con proxy para Workers cuando el dominio raíz aún carece de registros web."
   type        = bool
   default     = false
 }

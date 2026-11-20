@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "study" {
-  bucket = "${local.name}-${data.aws_caller_identity.this.account_id}-us-east-1"
+  bucket = "${local.name}-${data.aws_caller_identity.this.account_id}-${var.aws_region}"
 }
 
 resource "aws_s3_bucket_public_access_block" "study" {
@@ -56,7 +56,7 @@ resource "aws_bedrock_inference_profile" "study" {
   name        = local.name
   description = "Tutor Nova 2 Lite de PlanEstudio"
   model_source {
-    copy_from = "arn:aws:bedrock:us-east-1:${data.aws_caller_identity.this.account_id}:inference-profile/${local.model}"
+    copy_from = "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.this.account_id}:inference-profile/${local.model}"
   }
 }
 
@@ -146,15 +146,15 @@ resource "aws_lambda_function" "api" {
   source_code_hash               = data.archive_file.lambda.output_base64sha256
   timeout                        = 28
   memory_size                    = 256
-  reserved_concurrent_executions = 5
+  reserved_concurrent_executions = var.api_reserved_concurrency
   environment {
     variables = {
       APP_URL           = local.app
       STUDY_BUCKET      = aws_s3_bucket.study.bucket
       STUDY_TABLE       = aws_dynamodb_table.study.name
-      COGNITO_DOMAIN    = "https://${aws_cognito_user_pool_domain.study.domain}.auth.us-east-1.amazoncognito.com"
+      COGNITO_DOMAIN    = local.cognito_url
       USER_POOL         = aws_cognito_user_pool.study.id
-      WEB_CLIENT        = aws_cognito_user_pool_client.web.id
+      WEB_CLIENT        = try(aws_cognito_user_pool_client.web[0].id, "")
       MCP_CLIENT        = try(aws_cognito_user_pool_client.mcp[0].id, "")
       MCP_REDIRECT      = var.mcp_redirect_uri
       MCP_SCOPE         = local.mcp_scope

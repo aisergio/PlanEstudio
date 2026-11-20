@@ -280,11 +280,12 @@ function TutorView({ ready, guideKeys, state, date }: { ready: boolean; guideKey
 
 function Access({ config, error, loading, callback }: { config?: LoginConfig; error: string; loading: boolean; callback: boolean }) {
   const [loginError, setLoginError] = useState('');
+  const pending = config?.mode === 'pending';
   return <main className="access"><div className="access-card"><Brand /><h1>{loading ? 'Abriendo PlanEstudio' : 'Tu espacio de estudio'}</h1>
-    <p>{loading ? 'Un momento…' : 'Accede con tu cuenta de Google autorizada.'}</p>
+    <p>{loading ? 'Un momento…' : pending ? 'El acceso con Google está pendiente de configuración.' : 'Accede con tu cuenta de Google autorizada.'}</p>
     {(error || loginError) && <p className="form-error" role="alert">{error || loginError}</p>}
     {!loading && config?.mode === 'google' && !callback && <button className="button primary" onClick={() => signIn(config).catch(failure => setLoginError(messageOf(failure)))}>Entrar con Google <ArrowRight size={17} /></button>}
-    {!loading && (callback || config?.mode !== 'google') && <a className="text-link" href={base}>Volver al inicio <ArrowRight size={17} /></a>}
+    {!loading && (callback || (!pending && config?.mode !== 'google')) && <a className="text-link" href={base}>Volver al inicio <ArrowRight size={17} /></a>}
   </div></main>;
 }
 
@@ -307,6 +308,7 @@ export default function StudyApp({ view }: { view: string }) {
       try {
         const login = await request<LoginConfig>('auth/config');
         if (active) setConfig(login);
+        if (login.mode === 'pending') return;
         const data = await request<Bootstrap>('bootstrap');
         if (active) setBootstrap(data);
       } catch (failure) {

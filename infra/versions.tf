@@ -15,15 +15,11 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.7"
     }
-    cloudflare = {
-      source  = "cloudflare/cloudflare"
-      version = "4.52.5"
-    }
   }
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = var.aws_region
   default_tags {
     tags = { Project = "PlanEstudio" }
   }
@@ -32,11 +28,12 @@ provider "aws" {
 data "aws_caller_identity" "this" {}
 
 locals {
-  name      = "planestudio"
-  host      = "aisergio.dev"
-  app       = "https://${local.host}/PlanEstudio"
-  mcp_scope = "planestudio/lectura"
-  model     = "us.amazon.nova-2-lite-v1:0"
-  cognito   = "${local.name}-${data.aws_caller_identity.this.account_id}"
-  api_paths = ["/PlanEstudio/api/*", "/PlanEstudio/mcp", "/PlanEstudio/oauth/*", "/.well-known/oauth-protected-resource/PlanEstudio/mcp", "/.well-known/oauth-authorization-server/PlanEstudio/oauth"]
+  name        = "planestudio"
+  host        = "aisergio.dev"
+  app         = "https://${local.host}/PlanEstudio"
+  mcp_scope   = "planestudio/lectura"
+  model       = "us.amazon.nova-2-lite-v1:0"
+  cognito     = "${local.name}-${data.aws_caller_identity.this.account_id}"
+  cognito_url = "https://${aws_cognito_user_pool_domain.study.domain}.auth.${var.aws_region}.amazoncognito.com"
+  api_paths   = ["/PlanEstudio/api/*", "/PlanEstudio/mcp", "/PlanEstudio/oauth/*", "/.well-known/oauth-protected-resource/PlanEstudio/mcp", "/.well-known/oauth-authorization-server/PlanEstudio/oauth"]
 }

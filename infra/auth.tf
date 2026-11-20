@@ -1,4 +1,5 @@
 data "aws_secretsmanager_secret_version" "google" {
+  count     = var.google_secret_arn == null ? 0 : 1
   secret_id = var.google_secret_arn
 }
 
@@ -42,13 +43,14 @@ resource "aws_cognito_user_pool_domain" "study" {
 }
 
 resource "aws_cognito_identity_provider" "google" {
+  count         = var.google_secret_arn == null ? 0 : 1
   user_pool_id  = aws_cognito_user_pool.study.id
   provider_name = "Google"
   provider_type = "Google"
   provider_details = {
     authorize_scopes = "openid email profile"
-    client_id        = jsondecode(data.aws_secretsmanager_secret_version.google.secret_string).client_id
-    client_secret    = jsondecode(data.aws_secretsmanager_secret_version.google.secret_string).client_secret
+    client_id        = jsondecode(data.aws_secretsmanager_secret_version.google[0].secret_string).client_id
+    client_secret    = jsondecode(data.aws_secretsmanager_secret_version.google[0].secret_string).client_secret
   }
   attribute_mapping = {
     email          = "email"
@@ -67,13 +69,14 @@ resource "aws_cognito_resource_server" "mcp" {
 }
 
 resource "aws_cognito_user_pool_client" "web" {
+  count                                = var.google_secret_arn == null ? 0 : 1
   name                                 = "PlanEstudio Web"
   user_pool_id                         = aws_cognito_user_pool.study.id
   generate_secret                      = false
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = ["openid", "email"]
-  supported_identity_providers         = [aws_cognito_identity_provider.google.provider_name]
+  supported_identity_providers         = [aws_cognito_identity_provider.google[0].provider_name]
   callback_urls                        = ["${local.app}/auth/callback/"]
   logout_urls                          = ["${local.app}/"]
   explicit_auth_flows                  = ["ALLOW_REFRESH_TOKEN_AUTH"]
@@ -91,7 +94,7 @@ resource "aws_cognito_user_pool_client" "mcp" {
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_flows                  = ["code"]
   allowed_oauth_scopes                 = [local.mcp_scope]
-  supported_identity_providers         = [aws_cognito_identity_provider.google.provider_name]
+  supported_identity_providers         = [aws_cognito_identity_provider.google[0].provider_name]
   callback_urls                        = [var.mcp_redirect_uri]
   explicit_auth_flows                  = ["ALLOW_REFRESH_TOKEN_AUTH"]
   prevent_user_existence_errors        = "ENABLED"

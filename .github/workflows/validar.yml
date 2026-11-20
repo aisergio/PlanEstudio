@@ -40,3 +40,6 @@ jobs:
       - run: terraform -chdir=infra init -backend=false -input=false
       - run: terraform -chdir=infra validate
       - run: terraform -chdir=infra test
+      - run: terraform -chdir=infra/cloudflare init -backend=false -input=false
+      - run: terraform -chdir=infra/cloudflare validate
+      - run: terraform -chdir=infra/cloudflare test

@@ -54,7 +54,8 @@ test('en móvil un retorno de Google usa la misma prueba PKCE y abre el panel un
     const back = new URL(callback);
     back.searchParams.set('code', 'test-authorization-code');
     back.searchParams.set('state', params.get('state')!);
-    await route.fulfill({ status: 302, headers: { Location: back.href } });
+    await route.fulfill({ contentType: 'text/html; charset=utf-8',
+      body: `<a href="${back.href.replaceAll('&', '&amp;')}">Continuar con la cuenta de prueba</a>` });
   });
   await context.route(origin + base + 'api/auth/token', async route => {
     exchanges++;
@@ -67,6 +68,8 @@ test('en móvil un retorno de Google usa la misma prueba PKCE y abre el panel un
   });
   await page.goto(base);
   await page.getByRole('button', { name: 'Entrar con Google' }).click();
+  await page.getByRole('link', { name: 'Continuar con la cuenta de prueba' }).click();
+  await expect.poll(() => exchanges).toBe(1);
   await expect(page.getByRole('button', { name: 'Abrir menú' })).toBeVisible();
   await expect(page).toHaveURL(origin + base);
   expect(exchanges).toBe(1);

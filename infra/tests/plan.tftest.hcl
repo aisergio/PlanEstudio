@@ -44,6 +44,14 @@ run "infraestructura_con_presupuesto" {
     condition     = aws_cognito_user_pool_client.mcp[0].allowed_oauth_scopes == toset(["planestudio/lectura"])
     error_message = "ChatGPT solo necesita el permiso de lectura."
   }
+  assert {
+    condition = (
+      aws_cognito_user_pool_domain.study.managed_login_version == 2 &&
+      aws_cognito_managed_login_branding.web[0].use_cognito_provided_values &&
+      aws_cognito_managed_login_branding.mcp[0].use_cognito_provided_values
+    )
+    error_message = "Los clientes OAuth necesitan el inicio administrado para emitir tokens destinados a su recurso."
+  }
 }
 
 run "despliegue_inicial_sin_credenciales" {

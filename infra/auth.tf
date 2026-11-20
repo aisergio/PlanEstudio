@@ -38,8 +38,9 @@ resource "aws_lambda_permission" "cognito" {
 }
 
 resource "aws_cognito_user_pool_domain" "study" {
-  domain       = local.cognito
-  user_pool_id = aws_cognito_user_pool.study.id
+  domain                = local.cognito
+  user_pool_id          = aws_cognito_user_pool.study.id
+  managed_login_version = 2
 }
 
 resource "aws_cognito_identity_provider" "google" {
@@ -55,6 +56,18 @@ resource "aws_cognito_identity_provider" "google" {
   attribute_mapping = {
     email          = "email"
     email_verified = "email_verified"
+    username       = "sub"
+  }
+  lifecycle {
+    # Cognito discovers these Google endpoints when registering the provider.
+    ignore_changes = [
+      provider_details["attributes_url"],
+      provider_details["attributes_url_add_attributes"],
+      provider_details["authorize_url"],
+      provider_details["oidc_issuer"],
+      provider_details["token_request_method"],
+      provider_details["token_url"]
+    ]
   }
 }
 
@@ -100,4 +113,20 @@ resource "aws_cognito_user_pool_client" "mcp" {
   prevent_user_existence_errors        = "ENABLED"
   enable_token_revocation              = true
   depends_on                           = [aws_cognito_resource_server.mcp]
+}
+
+resource "aws_cognito_managed_login_branding" "web" {
+  count                       = length(aws_cognito_user_pool_client.web)
+  client_id                   = aws_cognito_user_pool_client.web[count.index].id
+  user_pool_id                = aws_cognito_user_pool.study.id
+  use_cognito_provided_values = true
+  depends_on                  = [aws_cognito_user_pool_domain.study]
+}
+
+resource "aws_cognito_managed_login_branding" "mcp" {
+  count                       = length(aws_cognito_user_pool_client.mcp)
+  client_id                   = aws_cognito_user_pool_client.mcp[count.index].id
+  user_pool_id                = aws_cognito_user_pool.study.id
+  use_cognito_provided_values = true
+  depends_on                  = [aws_cognito_user_pool_domain.study]
 }

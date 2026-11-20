@@ -103,7 +103,7 @@ test('API de estudio y MCP comparten minutos y las herramientas son de solo lect
 test('la identidad requiere la cuenta de Google verificada', () => {
   const data = { triggerSource: 'TokenGeneration_HostedAuth', userName: 'Google_test', request: { userAttributes: {
     email: 'owner@example.com', email_verified: 'true', sub: 'uid' } }, response: {} };
-  assert.equal(ownerTrigger(data, 'owner@example.com').response.claimsAndScopeOverrideDetails.accessTokenGeneration.claimsToAddOrOverride.planestudio_owner, 'true');
+  assert.equal(ownerTrigger(data, 'owner@example.com').response.claimsAndScopeOverrideDetails.accessTokenGeneration.claimsToAddOrOverride.planestudio_owner, true);
   assert.throws(() => ownerTrigger({ ...data, userName: 'test' }, 'owner@example.com'));
   assert.throws(() => ownerTrigger(data, 'someone@example.com'));
   assert.throws(() => ownerTrigger({ ...data, request: { userAttributes: { ...data.request.userAttributes, email_verified: 'false' } } }, 'owner@example.com'));

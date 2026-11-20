@@ -1,5 +1,6 @@
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
-import { failure, json, readJson, readText } from './http.ts';
+import { FetchError } from 'aws-jwt-verify/error';
+import { failure, HttpError, json, readJson, readText } from './http.ts';
 import { z } from 'zod';
 
 export type Auth = {
@@ -46,14 +47,22 @@ export function cognitoAuth(config: CognitoConfig): Auth {
   const verifyWeb = config.webClient ? CognitoJwtVerifier.create({ userPoolId: config.poolId, tokenUse: 'access', clientId: config.webClient }) : undefined;
   const verifyMcp = config.mcpClient ? CognitoJwtVerifier.create({ userPoolId: config.poolId, tokenUse: 'access', clientId: config.mcpClient, scope: config.mcpScope }) : undefined;
 
-  async function verify(token: string, context: 'web' | 'mcp') {
+  async function verify(token: string, context: 'web' | 'mcp', atExchange = false) {
     const verifier = context === 'web' ? verifyWeb : verifyMcp;
     if (!verifier) return false;
     try {
       const payload = await verifier.verify(token);
       const expectedAudience = context === 'web' ? app + '/api' : resource;
-      return payload['planestudio_owner'] === 'true' && payload.aud === expectedAudience && Boolean(payload.sub);
-    } catch { return false; }
+      const owner = payload.planestudio_owner === true || payload.planestudio_owner === 'true';
+      const audience = payload.aud === expectedAudience;
+      const subject = Boolean(payload.sub);
+      if (owner && audience && subject) return true;
+      if (atExchange) console.warn('OAuth claims rejected', { context, owner, audience, subject });
+    } catch (error) {
+      if (error instanceof FetchError) throw new HttpError(503, 'El servicio de acceso está temporalmente indisponible. Vuelve a intentarlo.');
+      if (atExchange) console.warn('OAuth verification failed', { context, check: error instanceof Error ? error.constructor.name : 'unknown' });
+    }
+    return false;
   }
 
   async function tokenRequest(parameters: URLSearchParams) {
@@ -89,7 +98,7 @@ export function cognitoAuth(config: CognitoConfig): Auth {
         }));
         if (!result.ok) return failure('Google no pudo completar el inicio de sesión.', 401);
         const data: { access_token?: string; expires_in?: number } = await result.json();
-        if (!data.access_token || !(await verify(data.access_token, 'web'))) return failure('Esta cuenta no tiene acceso a PlanEstudio.', 403);
+        if (!data.access_token || !(await verify(data.access_token, 'web', true))) return failure('Esta cuenta no tiene acceso a PlanEstudio.', 403);
         const age = typeof data.expires_in === 'number' ? Math.min(data.expires_in, 28_800) : 3600;
         return json({ ok: true }, 200, { 'Set-Cookie': cookieName + '=' + data.access_token + '; Max-Age=' + age + '; ' + secureCookie });
       }
@@ -142,7 +151,7 @@ export function cognitoAuth(config: CognitoConfig): Auth {
         const response = await tokenRequest(upstream);
         if (!response.ok) return oauthError('invalid_grant', 400);
         const tokens = await response.json();
-        if (typeof tokens.access_token !== 'string' || !(await verify(tokens.access_token, 'mcp'))) return oauthError('invalid_grant', 400);
+        if (typeof tokens.access_token !== 'string' || !(await verify(tokens.access_token, 'mcp', true))) return oauthError('invalid_grant', 400);
         return json({ access_token: tokens.access_token, refresh_token: tokens.refresh_token, expires_in: tokens.expires_in, token_type: 'Bearer', scope: config.mcpScope });
       }
       return undefined;
@@ -163,6 +172,6 @@ export function ownerTrigger(event: CognitoEvent, ownerEmail: string) {
   }
   if (event.triggerSource === 'PreSignUp_ExternalProvider') return event;
   if (!event.triggerSource.startsWith('TokenGeneration_') || attributes.email_verified !== 'true' || !attributes.sub) throw new Error('Identidad de Google sin verificar.');
-  event.response.claimsAndScopeOverrideDetails = { accessTokenGeneration: { claimsToAddOrOverride: { planestudio_owner: 'true' } } };
+  event.response.claimsAndScopeOverrideDetails = { accessTokenGeneration: { claimsToAddOrOverride: { planestudio_owner: true } } };
   return event;
 }

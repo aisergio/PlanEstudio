@@ -19,8 +19,8 @@ export class AwsStore implements Store {
     do {
       const result = await this.db.send(new QueryCommand({
         TableName: this.table, ConsistentRead: true,
-        KeyConditionExpression: 'owner = :owner AND begins_with(#key, :prefix)',
-        ExpressionAttributeNames: { '#key': 'key' },
+        KeyConditionExpression: '#owner = :owner AND begins_with(#key, :prefix)',
+        ExpressionAttributeNames: { '#owner': 'owner', '#key': 'key' },
         ExpressionAttributeValues: { ':owner': 'owner', ':prefix': prefix },
         ExclusiveStartKey: lastKey
       }));

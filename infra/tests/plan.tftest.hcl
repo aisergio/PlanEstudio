@@ -41,6 +41,10 @@ run "infraestructura_con_presupuesto" {
     error_message = "El bucket debe ser privado."
   }
   assert {
+    condition     = aws_lambda_function.api.environment[0].variables["OWNER_EMAIL"] == var.owner_email
+    error_message = "La API debe verificar el correo de Google autorizado para las sesiones web."
+  }
+  assert {
     condition     = aws_cognito_user_pool_client.mcp[0].allowed_oauth_scopes == toset(["planestudio/lectura"])
     error_message = "ChatGPT solo necesita el permiso de lectura."
   }

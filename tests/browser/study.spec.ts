@@ -49,6 +49,9 @@ test('en móvil un retorno de Google usa la misma prueba PKCE y abre el panel un
   await context.route(authorize + '?**', async route => {
     const params = new URL(route.request().url()).searchParams;
     expect(params.get('redirect_uri')).toBe(callback);
+    expect(params.has('resource')).toBe(false);
+    expect(params.get('scope')).toBe('openid email');
+    expect(params.get('identity_provider')).toBe('Google');
     expect(params.get('code_challenge_method')).toBe('S256');
     challenge = params.get('code_challenge')!;
     const back = new URL(callback);

@@ -12,6 +12,8 @@ Cloudflare dirige el prefijo `/PlanEstudio/` y las rutas de descubrimiento de OA
 
 Comprueba el acceso desde un PC y un celular y prueba una cuenta diferente. La sesión de la cuenta autorizada expira a las cuatro horas. API Gateway limita solicitudes y el servidor verifica las credenciales. Si hay abuso en el inicio de sesión, habilita Cloudflare Turnstile antes de iniciar OAuth y valida el resultado en el servidor. Mantén el retorno OAuth y el MCP accesibles al tráfico autenticado. [Validación de Turnstile](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/)
 
+El acceso web solicita los permisos `openid email` con PKCE. Al regresar de Google, el servidor valida la firma de Cognito, el cliente web, la vigencia, el proveedor Google y el correo verificado del propietario antes de abrir la sesión. [Identidad firmada por Cognito](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-the-id-token.html)
+
 ## ChatGPT y Bedrock
 
 En ChatGPT web, agrega una app personalizada con `https://aisergio.dev/PlanEstudio/mcp` y selecciona OAuth. Copia la URL exacta de retorno que muestra ChatGPT a `mcp_redirect_uri`, actualiza Terraform y usa `terraform -chdir=infra output -raw mcp_client_id` como identificador del cliente público. El servidor publica los metadatos OAuth con PKCE S256 y delega la autorización en Cognito. El permiso `planestudio/lectura` se emite para el MCP. Revisa que la cuenta o el espacio de trabajo tenga habilitada esta opción. [Conectar un servidor MCP](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt)

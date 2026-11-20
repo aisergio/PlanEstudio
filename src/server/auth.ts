@@ -12,10 +12,11 @@ export type Auth = {
 };
 
 export type CognitoConfig = {
-  app: string; domain: string; poolId: string; webClient: string;
+  app: string; domain: string; poolId: string; webClient: string; ownerEmail: string;
   mcpClient: string; mcpRedirect: string; mcpScope: string; mcpEnabled: boolean;
 };
 const cookieName = '__Secure-planestudio';
+const identityPrefix = 'id.';
 const secureCookie = 'Path=/PlanEstudio/api; HttpOnly; Secure; SameSite=Strict';
 const oauthError = (error: string, status: number) => json({ error }, status);
 const exchangeInput = z.object({
@@ -46,18 +47,31 @@ export function cognitoAuth(config: CognitoConfig): Auth {
   const issuer = app + '/oauth';
   const callback = app + '/auth/callback/';
   const loginHost = config.domain.replace(/\/$/, '');
-  const verifyWeb = config.webClient ? CognitoJwtVerifier.create({ userPoolId: config.poolId, tokenUse: 'access', clientId: config.webClient }) : undefined;
+  const webIdentity = config.webClient ? CognitoJwtVerifier.create({ userPoolId: config.poolId, tokenUse: 'id', clientId: config.webClient }) : undefined;
+  const legacyWebAccess = config.webClient ? CognitoJwtVerifier.create({ userPoolId: config.poolId, tokenUse: 'access', clientId: config.webClient }) : undefined;
   const verifyMcp = config.mcpClient ? CognitoJwtVerifier.create({ userPoolId: config.poolId, tokenUse: 'access', clientId: config.mcpClient, scope: config.mcpScope }) : undefined;
 
-  async function verify(token: string, context: 'web' | 'mcp', atExchange = false) {
-    const verifier = context === 'web' ? verifyWeb : verifyMcp;
-    if (!verifier) return false;
+  async function verify(token: string, context: 'web' | 'legacy-web' | 'mcp', atExchange = false) {
     try {
+      if (context === 'web') {
+        if (!webIdentity || !config.ownerEmail) return false;
+        const claims = await webIdentity.verify(token);
+        const owner = typeof claims.email === 'string' && claims.email.toLowerCase() === config.ownerEmail.toLowerCase();
+        const verificationClaim: unknown = claims.email_verified;
+        const verified = verificationClaim === true || verificationClaim === 'true';
+        const google = typeof claims['cognito:username'] === 'string' && claims['cognito:username'].toLowerCase().startsWith('google_');
+        const subject = Boolean(claims.sub) && Number.isFinite(claims.exp);
+        if (owner && verified && google && subject) return true;
+        if (atExchange) console.warn('Cognito web identity rejected', { owner, verified, google, subject });
+        return false;
+      }
+      const verifier = context === 'legacy-web' ? legacyWebAccess : verifyMcp;
+      if (!verifier) return false;
       const payload = await verifier.verify(token);
-      const expectedAudience = context === 'web' ? app + '/api' : resource;
+      const expectedAudience = context === 'legacy-web' ? app + '/api' : resource;
       const owner = payload.planestudio_owner === true || payload.planestudio_owner === 'true';
       const audience = payload.aud === expectedAudience;
-      const subject = Boolean(payload.sub);
+      const subject = Boolean(payload.sub) && Number.isFinite(payload.exp);
       if (owner && audience && subject) return true;
       if (atExchange) console.warn('OAuth claims rejected', { context, owner, audience, subject });
     } catch (error) {
@@ -82,7 +96,8 @@ export function cognitoAuth(config: CognitoConfig): Auth {
         return config.mcpEnabled && Boolean(header?.startsWith('Bearer ') && await verify(header.slice(7), 'mcp'));
       }
       const token = request.headers.get('Cookie')?.split(/;\s*/).find(item => item.startsWith(cookieName + '='))?.slice(cookieName.length + 1);
-      return Boolean(token && await verify(token, 'web'));
+      if (!token) return false;
+      return token.startsWith(identityPrefix) ? verify(token.slice(identityPrefix.length), 'web') : verify(token, 'legacy-web');
     },
     async handle(request, path) {
       if (path === '/api/auth/config' && request.method === 'GET') {
@@ -105,10 +120,10 @@ export function cognitoAuth(config: CognitoConfig): Auth {
           if (result.status >= 500 || result.status === 429) return failure('El servicio de acceso está ocupado. Vuelve a intentarlo en un momento.', 503);
           return failure('El servicio de acceso rechazó este intento. Vuelve al inicio para abrir una sesión nueva.', 401);
         }
-        const data: { access_token?: string; expires_in?: number } = await result.json();
-        if (!data.access_token || !(await verify(data.access_token, 'web', true))) return failure('Esta cuenta no tiene acceso a PlanEstudio.', 403);
-        const age = typeof data.expires_in === 'number' ? Math.min(data.expires_in, 28_800) : 3600;
-        return json({ ok: true }, 200, { 'Set-Cookie': cookieName + '=' + data.access_token + '; Max-Age=' + age + '; ' + secureCookie });
+        const data: { id_token?: string; expires_in?: number } = await result.json();
+        if (typeof data.id_token !== 'string' || !(await verify(data.id_token, 'web', true))) return failure('Esta cuenta no tiene acceso a PlanEstudio.', 403);
+        const age = typeof data.expires_in === 'number' ? Math.min(data.expires_in, 14_400) : 3600;
+        return json({ ok: true }, 200, { 'Set-Cookie': cookieName + '=' + identityPrefix + data.id_token + '; Max-Age=' + age + '; ' + secureCookie });
       }
       if (path === '/api/auth/logout' && request.method === 'POST') {
         if (request.headers.get('Origin') !== origin) return failure('El origen de la solicitud no está autorizado.', 403);

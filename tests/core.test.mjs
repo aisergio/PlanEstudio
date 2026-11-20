@@ -112,7 +112,7 @@ test('la identidad requiere la cuenta de Google verificada', () => {
 test('la publicación inicial mantiene el catálogo y el MCP privados mientras se configura Google', async () => {
   const origin = 'https://example.test';
   const auth = cognitoAuth({ app: origin + '/PlanEstudio', domain: 'https://example.auth.us-east-2.amazoncognito.com',
-    poolId: 'us-east-2_example', webClient: '', mcpClient: '', mcpRedirect: '', mcpScope: 'planestudio/lectura', mcpEnabled: false });
+    poolId: 'us-east-2_example', webClient: '', ownerEmail: 'owner@example.test', mcpClient: '', mcpRedirect: '', mcpScope: 'planestudio/lectura', mcpEnabled: false });
   const run = api({ auth, store: new LocalStore(), library: async () => assert.fail('El catálogo requiere iniciar sesión.') });
   const response = await run(new Request(origin + '/PlanEstudio/api/auth/config'));
   assert.deepEqual(await response.json(), { mode: 'pending' });

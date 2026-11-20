@@ -13,7 +13,7 @@ export async function request<T>(path: string, method = 'GET', body?: unknown): 
 }
 export const messageOf = (error: unknown) => error instanceof Error ? error.message : 'No se pudo completar la solicitud.';
 
-export type LoginConfig = { mode: 'local' } | { mode: 'pending' } | { mode: 'google'; authorize: string; clientId: string; callback: string; resource: string };
+export type LoginConfig = { mode: 'local' } | { mode: 'pending' } | { mode: 'google'; authorize: string; clientId: string; callback: string };
 const encoded = (value: Uint8Array) => btoa(String.fromCharCode(...value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const loginKey = 'planestudio-pkce';
 export async function signIn(config: Extract<LoginConfig, { mode: 'google' }>) {
@@ -23,7 +23,7 @@ export async function signIn(config: Extract<LoginConfig, { mode: 'google' }>) {
   sessionStorage.setItem(loginKey, JSON.stringify({ state, verifier }));
   const url = new URL(config.authorize);
   url.search = new URLSearchParams({
-    client_id: config.clientId, redirect_uri: config.callback, resource: config.resource,
+    client_id: config.clientId, redirect_uri: config.callback,
     response_type: 'code', scope: 'openid email', identity_provider: 'Google', state,
     code_challenge_method: 'S256', code_challenge: challenge
   }).toString();

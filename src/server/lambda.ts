@@ -30,7 +30,7 @@ export async function handler(event: GatewayEvent | Parameters<typeof ownerTrigg
     handle = api({ store, library, workerHash: env.WORKER_TOKEN_HASH,
       tutor: env.BEDROCK_MODEL ? novaTutor(env.BEDROCK_MODEL, store) : undefined,
       auth: cognitoAuth({
-        app: env.APP_URL!, domain: env.COGNITO_DOMAIN!, poolId: env.USER_POOL!,
+        app: env.APP_URL!, domain: env.COGNITO_DOMAIN!, poolId: env.USER_POOL!, ownerEmail: env.OWNER_EMAIL!,
         webClient: env.WEB_CLIENT!, mcpClient: env.MCP_CLIENT ?? '', mcpRedirect: env.MCP_REDIRECT ?? '',
         mcpScope: env.MCP_SCOPE!, mcpEnabled: Boolean(env.MCP_REDIRECT && env.MCP_CLIENT)
       })

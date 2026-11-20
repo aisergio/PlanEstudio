@@ -150,6 +150,7 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       APP_URL           = local.app
+      OWNER_EMAIL       = var.owner_email
       STUDY_BUCKET      = aws_s3_bucket.study.bucket
       STUDY_TABLE       = aws_dynamodb_table.study.name
       COGNITO_DOMAIN    = local.cognito_url

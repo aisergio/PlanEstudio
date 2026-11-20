@@ -17,54 +17,71 @@ test('CloudFront sirve hojas de estilo con puntos consecutivos en su nombre', ()
   assert.equal(request('/private/library.json').statusCode, 404);
 });
 
-test('el retorno emite una sesión exclusiva del propietario y del recurso web', async t => {
+test('la sesión web exige una identidad Google firmada del propietario y el MCP su propio permiso', async t => {
   const origin = 'https://example.test';
   const app = origin + '/PlanEstudio';
   const webClient = 'web-test';
   const poolId = 'us-east-2_example';
-  const auth = cognitoAuth({ app, poolId, webClient, domain: 'https://login.example.test',
+  const auth = cognitoAuth({ app, poolId, webClient, ownerEmail: 'owner@example.test', domain: 'https://login.example.test',
     mcpClient: 'mcp-test', mcpRedirect: '', mcpScope: 'planestudio/lectura', mcpEnabled: true });
   const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const key = { ...publicKey.export({ format: 'jwk' }), kid: 'test-key', alg: 'RS256' };
   t.mock.method(SimpleJwksCache.prototype, 'getJwk', async () => key);
   const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const claims = { iss: 'https://cognito-idp.us-east-2.amazonaws.com/' + poolId, client_id: webClient,
-    sub: 'owner-id', token_use: 'access', exp: Math.floor(Date.now() / 1000) + 600,
-    aud: app + '/api', planestudio_owner: true };
-  let token;
-  function issue(overrides = {}) {
-    const data = encode({ alg: 'RS256', kid: key.kid }) + '.' + encode({ ...claims, ...overrides });
-    token = data + '.' + sign('sha256', Buffer.from(data), privateKey).toString('base64url');
-    return token;
+  const common = { iss: 'https://cognito-idp.us-east-2.amazonaws.com/' + poolId,
+    sub: 'owner-id', exp: Math.floor(Date.now() / 1000) + 600 };
+  const identity = { ...common, token_use: 'id', aud: webClient, email: 'Owner@example.test',
+    email_verified: true, 'cognito:username': 'Google_test' };
+  const legacy = { ...common, token_use: 'access', client_id: webClient, aud: app + '/api', planestudio_owner: true };
+  const mcp = { ...legacy, client_id: 'mcp-test', aud: app + '/mcp', scope: 'planestudio/lectura' };
+  function issue(claims) {
+    const data = encode({ alg: 'RS256', kid: key.kid }) + '.' + encode(claims);
+    return data + '.' + sign('sha256', Buffer.from(data), privateKey).toString('base64url');
   }
-  t.mock.method(globalThis, 'fetch', async () => Response.json({ access_token: token, expires_in: 600 }));
+  let idToken;
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ id_token: idToken, access_token: issue(legacy), expires_in: 600 }));
   const exchange = () => auth.handle(new Request(app + '/api/auth/token', { method: 'POST',
     headers: { Origin: origin, 'Content-Type': 'application/json' },
     body: JSON.stringify({ code: 'dummy-code', verifier: 'x'.repeat(43) }) }), '/api/auth/token');
 
-  for (const owner of [true, 'true']) {
-    issue({ planestudio_owner: owner });
+  const webSession = cookie => auth.authorize(new Request(app + '/api/bootstrap', { headers: { Cookie: cookie } }), 'web');
+  const mcpAccess = token => auth.authorize(new Request(app + '/mcp', { headers: { Authorization: 'Bearer ' + token } }), 'mcp');
+
+  for (const verified of [true, 'true']) {
+    idToken = issue({ ...identity, email_verified: verified });
     const result = await exchange();
     assert.equal(result.status, 200);
     const cookie = result.headers.get('Set-Cookie');
     assert.match(cookie, /HttpOnly; Secure; SameSite=Strict/);
-    const request = new Request(app + '/api/bootstrap', { headers: { Cookie: cookie.split(';')[0] } });
-    assert.equal(await auth.authorize(request, 'web'), true);
-    assert.equal(await auth.authorize(new Request(app + '/mcp', { headers: { Authorization: 'Bearer ' + token } }), 'mcp'), false);
+    assert.equal(await webSession(cookie.split(';')[0]), true);
+    assert.equal(await mcpAccess(idToken), false);
   }
-  for (const invalid of [{ planestudio_owner: false }, { planestudio_owner: 'false' }, { aud: undefined },
-    { aud: app + '/mcp' }, { client_id: 'other-client' }, { exp: 1 }, { sub: '' }]) {
-    issue(invalid);
+  for (const invalid of [{ email: 'another@example.test' }, { email: undefined }, { email_verified: false },
+    { email_verified: 'false' }, { 'cognito:username': 'local_test' }, { aud: 'mcp-test' }, { aud: undefined },
+    { iss: 'https://another.example.test' }, { exp: 1 }, { exp: undefined }, { sub: '' }]) {
+    idToken = issue({ ...identity, ...invalid });
     const rejected = await exchange();
     assert.equal(rejected.status, 403);
     assert.equal(rejected.headers.has('Set-Cookie'), false);
+  }
+  for (const wrongType of [undefined, issue(legacy), issue(mcp)]) {
+    idToken = wrongType;
+    assert.equal((await exchange()).status, 403);
+  }
+  assert.equal(await webSession('__Secure-planestudio=' + issue(legacy)), true);
+  assert.equal(await webSession('__Secure-planestudio=' + issue({ ...legacy, aud: undefined })), false);
+  assert.equal(await webSession('__Secure-planestudio=' + issue(mcp)), false);
+  assert.equal(await mcpAccess(issue(mcp)), true);
+  assert.equal(await mcpAccess(issue(legacy)), false);
+  for (const invalid of [{ planestudio_owner: 'false' }, { scope: 'other' }, { aud: app + '/api' }, { exp: 1 }]) {
+    assert.equal(await mcpAccess(issue({ ...mcp, ...invalid })), false);
   }
 });
 
 test('un canje rechazado distingue interrupciones del servicio y omite datos privados del diagnóstico', async t => {
   const origin = 'https://example.test';
   const app = origin + '/PlanEstudio';
-  const auth = cognitoAuth({ app, poolId: 'us-east-2_example', webClient: 'web-test',
+  const auth = cognitoAuth({ app, poolId: 'us-east-2_example', webClient: 'web-test', ownerEmail: 'owner@example.test',
     domain: 'https://login.example.test', mcpClient: '', mcpRedirect: '', mcpScope: '', mcpEnabled: false });
   const warnings = t.mock.method(console, 'warn', () => {});
   let upstream;

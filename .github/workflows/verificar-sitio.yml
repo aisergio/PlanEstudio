@@ -1,0 +1,36 @@
+name: Verificar sitio publicado
+
+on: workflow_dispatch
+permissions: {}
+
+jobs:
+  sitio-publico:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Comprobar el certificado público, los estilos y el acceso privado
+        shell: bash
+        run: |
+          set -euo pipefail
+          domain=aisergio.dev
+          origin="https://$domain"
+          base="$origin/PlanEstudio"
+          openssl s_client -connect "$domain:443" -servername "$domain" \
+            -verify_hostname "$domain" -verify_return_error </dev/null \
+            | openssl x509 -noout -subject -issuer -enddate -fingerprint -sha256
+          for page in "$base/" "$base/auth/callback/"; do
+            html=$(curl --fail --silent --show-error --max-time 20 "$page")
+            css=$(sed -n 's/.*<link rel="stylesheet" href="\([^"]*\)".*/\1/p' <<<"$html")
+            [[ "$css" == /PlanEstudio/_astro/*.css ]]
+            mime=$(curl --fail --silent --show-error --max-time 20 \
+              --output "$RUNNER_TEMP/planestudio.css" --write-out '%{content_type}' "$origin$css")
+            [[ "$mime" == text/css* ]]
+            grep -Fq '.access-card' "$RUNNER_TEMP/planestudio.css"
+            echo "$page entregó la hoja de estilos del acceso."
+          done
+          for path in api/bootstrap mcp; do
+            status=$(curl --silent --show-error --max-time 20 --output /dev/null \
+              --write-out '%{http_code}' "$base/$path")
+            [[ "$status" == 401 ]]
+            echo "El recurso privado $path respondió $status."
+          done
